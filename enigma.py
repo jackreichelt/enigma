@@ -1,44 +1,67 @@
 from random import shuffle
 alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+greek = -4
+l = -3
+m = -2
+r = -1
 
 class Rotor:
-    def __init__(self, subs: str, turnovers: list[int] = [0]) -> None:
-        self.subs = subs.upper()
+
+    def __init__(self, wiring: str, turnovers: list[str] = []) -> None:
+        self.encoding_string = wiring
+        self.wiring = [alphabet.index(c)-i for i, c in enumerate(wiring)]
+        self.reverse = [0] * 26
+        for i, delta in enumerate(self.wiring):
+            self.reverse[(i+delta)%26] = i
         self.position = 0
-        self.turnovers = turnovers
         self.ring_setting = 0
+        self.turnovers = []
+        for t in turnovers:
+            self.add_turnover_letter(t)
     
     def add_turnover_letter(self, letter: str) -> None:
-        current_pos = self.position
-        self.set_position(0)
-        self.turnovers.append((self.subs.index(letter)+1)%26)
-        self.set_position(current_pos)
+        self.turnovers.append((alphabet.index(letter)+1)%26)
     
-    def set_ring_setting(self, new_setting: str) -> None:
-        new_ring_setting = alphabet.index(new_setting)
-        while self.ring_setting != new_ring_setting:
-            self.subs = self.subs[1:] + self.subs[0]
-            self.ring_setting += 1
-            self.ring_setting %= 26
+    def set_ring_setting(self, new_setting: str | int) -> None:
+        if isinstance(new_setting, int):
+            self.ring_setting = new_setting
+        else:
+            self.ring_setting = alphabet.index(new_setting)
 
     def set_position(self, pos: int):
         while self.position != pos:
             self.rotate()
+    
+    def reset(self):
+        self.set_position(0)
+        self.set_ring_setting("A")
 
     def rotate(self) -> bool:
-        self.subs = self.subs[1:] + self.subs[0]
+        # self.wiring = self.wiring[1:] + [self.wiring[0]]
         self.position += 1
         self.position %= 26
-
         return self.position in self.turnovers
 
-    def encode_in(self, l: str) -> str:
-        i = alphabet.index(l.upper())
-        return self.subs[i]
+    def encode_in(self, val: int) -> int:
+        in_wire = (val - self.ring_setting + self.position) % 26
+        out_wire = val + self.wiring[in_wire]
+        out_wire %= 26
+        return out_wire
+
+    def encode_out(self, val: int) -> int:
+        in_wire = (val - self.ring_setting + self.position) % 26
+        out_wire = self.reverse[in_wire]
+        out_wire += self.ring_setting
+        out_wire -= self.position
+        out_wire %= 26
+        return out_wire
+
+class Reflector:
+    def __init__(self, wiring: list[int]) -> None:
+        self.wiring = [alphabet.index(c) for c in wiring]
     
-    def encode_out(self, l: str) -> str:
-        i = self.subs.index(l.upper())
-        return alphabet[i]
+    def __getitem__(self, item) -> int:
+        return self.wiring[item]
 
 def make_rotor() -> Rotor:
     subs = list(alphabet)
@@ -48,19 +71,21 @@ def make_rotor() -> Rotor:
 
 class Enigma:
 
-    def __init__(self, rotor_count: int) -> None:
-        self.rotor_count = rotor_count
-        self.rotors: list[Rotor] = [None] * rotor_count
-        self.reflector = {}
+    def __init__(self, reflector: Reflector, rotors: list[Rotor]) -> None:
+        self.rotor_count = len(rotors)
+        self.rotors = rotors
+        self.reflector = reflector
         self.swaps = {}
+        self.double_step = False
     
     def print_state(self) -> None:
-        print(self.swaps)
-        for i in range(3):
-            print(alphabet)
-            print(self.rotors[i].subs)
-            print()
-        print(self.reflector)
+        # print(self.swaps)
+        # for i in range(3):
+        #     print(alphabet)
+        #     print(self.rotors[i].subs)
+        #     print()
+        # print(self.reflector)
+        pass
     
     def generate_reflector(self) -> str:
         subs = list(alphabet)
@@ -77,55 +102,68 @@ class Enigma:
             self.set_rotor(make_rotor(), i)
         self.generate_reflector()
 
-    def set_rotor(self, rotor: Rotor, pos: int) -> None:
-        if 0 <= pos < self.rotor_count:
-            self.rotors[pos] = rotor
-    
-    def set_reflector(self, reflector) -> None:
-        self.reflector = reflector
-    
     def reset_rotors(self) -> None:
         for r in self.rotors:
-            r.set_ring_setting("A")
-            r.set_position(0)
+            r.reset()
     
-    def set_ring_settings(self, settings: str) -> None:
-        settings = settings[::-1] # settings come left-to-right, but rotors are indexed right-to-left
+    def set_ring_settings(self, settings: str | list[int]) -> None:
         for i in range(self.rotor_count):
             self.rotors[i].set_ring_setting(settings[i])
     
     def set_start_positions(self, positions: str) -> None:
-        positions = positions[::-1] # positions come left-to-right, but rotors are indexed right-to-left
         for i in range(self.rotor_count):
             pos = alphabet.index(positions[i])
             self.rotors[i].set_position(pos)
+        
+    def ring_positions(self) -> str:
+        l_pos = alphabet[self.rotors[l].position]
+        m_pos = alphabet[self.rotors[m].position]
+        r_pos = alphabet[self.rotors[r].position]
+        return f"{l_pos}{m_pos}{r_pos}"
+    
+    def letter_to_wire_index(self, letter: str) -> int:
+        if letter in self.swaps:
+            letter = self.swaps[letter]
+        return alphabet.index(letter)
+
+    def wire_index_to_letter(self, index: int) -> str:
+        letter = alphabet[index]
+        if letter in self.swaps:
+            return self.swaps[letter]
+        return letter
     
     def add_swap(self, a: str, b: str) -> None:
         self.swaps[a] = b
         self.swaps[b] = a
+    
+    def add_swaps(self, swaps: str) -> None:
+        for pair in swaps.split(" "):
+            self.add_swap(pair[0], pair[1])
 
     def rotor_step(self) -> None:
-        for i in range(self.rotor_count):
-            if self.rotors[i].rotate():
-                continue
-            break
+        middle_turnover = self.rotors[r].rotate()
+        if middle_turnover or self.double_step:
+            left_turnover = self.rotors[m].rotate()
+            self.double_step = False
+            if (self.rotors[m].position + 1) % 26 in self.rotors[m].turnovers:
+                self.double_step = True
+            if left_turnover:
+                self.rotors[l].rotate()
     
     def encode_letter(self, l: str) -> str:
         l = l.upper()
 
-        if l in self.swaps:
-            l = self.swaps[l]
+        l = self.letter_to_wire_index(l)
 
-        for r in self.rotors:
+        for r in self.rotors[::-1]:
             l = r.encode_in(l)
         
         l = self.reflector[l]
 
-        for r in self.rotors[::-1]:
+        for r in self.rotors:
             l = r.encode_out(l)
             
-        if l in self.swaps:
-            l = self.swaps[l]
+        l = self.wire_index_to_letter(l)
 
         return l
     
@@ -146,30 +184,20 @@ class Enigma:
     def decode_message(self, m: str) -> str:
         return self.encode_message(m)
 
-rotor_I = Rotor("EKMFLGDQVZNTOWYHXUSPAIBRCJ", [])
-rotor_I.add_turnover_letter("Q")
-rotor_II = Rotor("AJDKSIRUXBLHWTMCQGZNPYFVOE", [])
-rotor_II.add_turnover_letter("E")
-rotor_III = Rotor("BDFHJLCPRTXVZNYEIWGAKMUSQO", [])
-rotor_III.add_turnover_letter("V")
-rotor_IV = Rotor("ESOVPZJAYQUIRHXLNFTGKDCMWB", [])
-rotor_IV.add_turnover_letter("J")
-rotor_V = Rotor("VZBRGITYUPSDNHLXAWMJQOFECK", [])
-rotor_V.add_turnover_letter("Z")
-rotor_VI = Rotor("JPGVOUMFYQBENHZRDKASXLICTW", [])
-rotor_VI.add_turnover_letter("M")
-rotor_VI.add_turnover_letter("Z")
-rotor_VII = Rotor("NZJHGRCXMYSWBOUFAIVLPEKQDT", [])
-rotor_VII.add_turnover_letter("M")
-rotor_VII.add_turnover_letter("Z")
-rotor_VIII = Rotor("FKQHTLXOCBJSPDZRAMEWNIUYGV", [])
-rotor_VIII.add_turnover_letter("M")
-rotor_VIII.add_turnover_letter("Z")
-rotor_beta = Rotor("LEYJVCNIXWPBQMDRTAKZGFUHOS", [])
-rotor_gamma = Rotor("FSOKANUERHMBTIYCWLQPZXVGJD", [])
+rotor_I = Rotor("EKMFLGDQVZNTOWYHXUSPAIBRCJ", ["Q"])
+rotor_II = Rotor("AJDKSIRUXBLHWTMCQGZNPYFVOE", ["E"])
+rotor_III = Rotor("BDFHJLCPRTXVZNYEIWGAKMUSQO", ["V"])
+rotor_IV = Rotor("ESOVPZJAYQUIRHXLNFTGKDCMWB", ["J"])
+rotor_V = Rotor("VZBRGITYUPSDNHLXAWMJQOFECK", ["Z"])
+rotor_VI = Rotor("JPGVOUMFYQBENHZRDKASXLICTW", ["M", "Z"])
+rotor_VII = Rotor("NZJHGRCXMYSWBOUFAIVLPEKQDT", ["M", "Z"])
+rotor_VIII = Rotor("FKQHTLXOCBJSPDZRAMEWNIUYGV", ["M", "Z"])
+rotor_beta = Rotor("LEYJVCNIXWPBQMDRTAKZGFUHOS")
+rotor_gamma = Rotor("FSOKANUERHMBTIYCWLQPZXVGJD")
 
-ref_a = {a: b for a, b in zip(alphabet, "EJMZALYXVBWFCRQUONTSPIKHGD")}
-ref_b = {a: b for a, b in zip(alphabet, "YRUHQSLDPXNGOKMIEBFZCWVJAT")}
-ref_c = {a: b for a, b in zip(alphabet, "FVPJIAOYEDRZXWGCTKUQSBNMHL")}
-ref_b_thin = {a: b for a, b in zip(alphabet, "ENKQAUYWJICOPBLMDXZVFTHRGS")}
-ref_c_thin = {a: b for a, b in zip(alphabet, "RDOBJNTKVEHMLFCWZAXGYIPSUQ")}
+ref_a = Reflector("EJMZALYXVBWFCRQUONTSPIKHGD")
+ref_b = Reflector("YRUHQSLDPXNGOKMIEBFZCWVJAT")
+ref_c = Reflector("FVPJIAOYEDRZXWGCTKUQSBNMHL")
+ref_b_thin = Reflector("ENKQAUYWJICOPBLMDXZVFTHRGS")
+ref_c_thin = Reflector("RDOBJNTKVEHMLFCWZAXGYIPSUQ")
+
