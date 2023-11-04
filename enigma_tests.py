@@ -108,7 +108,7 @@ class TestEnigmaBasicAuthenticity(unittest.TestCase):
 
 class TestEnigmaAuthenticity(unittest.TestCase):
 
-    @unittest.skip("Not sure why not authentic yet")
+    @unittest.skip("Possibly this example is wrong? All other authentic tests pass.")
     def test_minor(self):
         em = Enigma(ref_b, [rotor_I, rotor_II, rotor_V])
         em.set_ring_settings([6, 22, 14])
