@@ -139,6 +139,10 @@ class Enigma:
     def add_swaps(self, swaps: str) -> None:
         for pair in swaps.split(" "):
             self.add_swap(pair[0], pair[1])
+    
+    def set_swaps(self, swaps: str) -> None:
+        self.swaps = {}
+        self.add_swaps(swaps)
 
     def rotor_step(self) -> None:
         middle_turnover = self.rotors[r].rotate()

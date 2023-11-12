@@ -1,12 +1,13 @@
 import unittest
 from enigma import *
 
+
 def wire(l):
     alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     return alphabet.index(l)
 
-class TestRotor(unittest.TestCase):
 
+class TestRotor(unittest.TestCase):
     def setUp(self):
         self.r = rotor_I
         self.r.reset()
@@ -14,31 +15,31 @@ class TestRotor(unittest.TestCase):
     def test_reversability(self):
         self.assertEqual(self.r.encode_in(wire("A")), wire("E"))
         self.assertEqual(self.r.encode_out(wire("E")), wire("A"))
-    
+
     def test_rotation(self):
         self.assertEqual(self.r.encode_in(wire("A")), wire("E"))
         self.r.rotate()
         self.assertEqual(self.r.encode_in(wire("A")), wire("J"))
-    
+
     def test_rotation_loop(self):
         self.r.set_position(25)
         self.assertEqual(self.r.encode_in(wire("A")), wire("K"))
         self.r.rotate()
         self.assertEqual(self.r.encode_in(wire("A")), wire("E"))
-    
+
     def test_ring_setting(self):
         self.r.set_ring_setting("B")
         self.assertEqual(self.r.encode_in(wire("A")), wire("K"))
         self.assertEqual(self.r.encode_out(wire("K")), wire("A"))
-    
+
     def test_complex_settings(self):
         self.r.set_ring_setting("F")
         self.r.set_position(wire("Y"))
         self.assertEqual(self.r.encode_in(wire("A")), wire("W"))
         self.assertEqual(self.r.encode_out(wire("W")), wire("A"))
 
-class TestEnigmaViability(unittest.TestCase):
 
+class TestEnigmaViability(unittest.TestCase):
     def setUp(self):
         self.em = Enigma(ref_a, [rotor_III, rotor_II, rotor_I])
         self.em.reset_rotors()
@@ -49,20 +50,22 @@ class TestEnigmaViability(unittest.TestCase):
         self.em.reset_rotors()
         decodedtext = self.em.decode_message(ciphertext)
         self.assertEqual(plaintext, decodedtext)
-    
+
     def test_chained_rotation(self):
         self.em.rotors[r].set_position(wire("Q"))
         self.em.rotor_step()
         self.assertEqual(self.em.rotors[r].position, wire("R"))
         self.assertEqual(self.em.rotors[m].position, 1)
-    
+
     def test_longer_message(self):
-        plaintext = "HELLO EVERYONE. THIS IS A LONGER MESSAGE ENCODED WITH THE ENIGMA MACHINE."
+        plaintext = (
+            "HELLO EVERYONE. THIS IS A LONGER MESSAGE ENCODED WITH THE ENIGMA MACHINE."
+        )
         ciphertext = self.em.encode_message(plaintext)
         self.em.reset_rotors()
         decodedtext = self.em.decode_message(ciphertext)
         self.assertEqual(plaintext, decodedtext)
-    
+
     def test_double_step(self):
         self.em.set_start_positions("VDQ")
         self.em.rotor_step()
@@ -71,7 +74,7 @@ class TestEnigmaViability(unittest.TestCase):
         self.assertEqual(self.em.ring_positions(), "WFS")
         self.em.rotor_step()
         self.assertEqual(self.em.ring_positions(), "WFT")
-    
+
     def test_real_double_step(self):
         self.em.set_start_positions("KDO")
         self.em.rotor_step()
@@ -87,8 +90,8 @@ class TestEnigmaViability(unittest.TestCase):
         self.em.rotor_step()
         self.assertEqual(self.em.ring_positions(), "LFU")
 
-class TestEnigmaBasicAuthenticity(unittest.TestCase):
 
+class TestEnigmaBasicAuthenticity(unittest.TestCase):
     def setUp(self):
         self.em = Enigma(ref_b, [rotor_I, rotor_II, rotor_III])
         self.em.reset_rotors()
@@ -98,7 +101,7 @@ class TestEnigmaBasicAuthenticity(unittest.TestCase):
         ciphertext = self.em.encode_message(plaintext)
         expected = "BDZGO"
         self.assertEqual(ciphertext, expected)
-    
+
     def test_aaaaa_offset(self):
         self.em.set_ring_settings("BBB")
         plaintext = "AAAAA"
@@ -106,17 +109,25 @@ class TestEnigmaBasicAuthenticity(unittest.TestCase):
         expected = "EWTYX"
         self.assertEqual(ciphertext, expected)
 
-class TestEnigmaAuthenticity(unittest.TestCase):
 
-    @unittest.skip("Possibly this example is wrong? All other authentic tests pass.")
+class TestEnigmaAuthenticity(unittest.TestCase):
     def test_minor(self):
         em = Enigma(ref_b, [rotor_I, rotor_II, rotor_V])
-        em.set_ring_settings([6, 22, 14])
+        em.set_ring_settings(
+            [5, 21, 13]
+        )  # Had an off by 1 error in getting the ring settings.
+        # em.set_ring_settings([6, 22, 14])
         em.add_swaps("PO ML IU KJ NH YT GB VF RE DC")
         em.set_start_positions("EHZ")
         message_key = em.decode_message("TBS")
         self.assertEquals(message_key, "XWB")
-    
+
+        em.set_start_positions("XWB")
+        encoded = """QBLTW LDAHH YEOEF
+PTWYB LENDP MKOXL DFAMU
+DWIJD XRJZ"""
+        print(em.decode_message(encoded))
+
     def test_wehrmacht(self):
         em = Enigma(ref_b, [rotor_II, rotor_IV, rotor_V])
         em.set_ring_settings("BUL")
@@ -154,8 +165,8 @@ class TestEnigmaAuthenticity(unittest.TestCase):
         em.set_start_positions(message_key)
         self.assertEquals(em.decode_message(full_message), full_decoded)
 
-class TestEnigmaDonitz(unittest.TestCase):
 
+class TestEnigmaDonitz(unittest.TestCase):
     def setUp(self):
         self.em = Enigma(ref_c_thin, [rotor_beta, rotor_V, rotor_VI, rotor_VIII])
         self.em.reset_rotors()
@@ -169,7 +180,7 @@ class TestEnigmaDonitz(unittest.TestCase):
         expected_key = "CDSZ"
 
         self.assertEqual(self.em.encode_message(first_key), expected_key)
-    
+
     def test_donitz_message(self):
         self.em.set_start_positions("CDSZ")
         cipher_text = self.em.encode_message("KRKR ALLE XX")
@@ -177,19 +188,5 @@ class TestEnigmaDonitz(unittest.TestCase):
         self.assertEqual(cipher_text, expected_text)
 
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-
-# def test_AAAAA():
-#     em = Enigma(3)
-#     em.set_rotor(rotor_III, 0)
-#     em.set_rotor(rotor_II, 1)
-#     em.set_rotor(rotor_I, 2)
-#     em.set_reflector(ref_b)
-
-#     em.print_state()
-
-#     result = em.encode_message("AAAAA")
-#     print(f"{result = }")
